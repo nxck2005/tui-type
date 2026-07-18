@@ -61,6 +61,7 @@ func RenderProfile(data stats.Data, width, height int) string {
 	if recent != "" {
 		rows = append(rows, "", Sub.Render("recent tests"), recent)
 	}
+	rows = append(rows, "", Sub.Render("made with <3 by nxck"))
 	content := lipgloss.JoinVertical(lipgloss.Center, rows...)
 	return Frame(width, height, content, "esc back")
 }

@@ -12,6 +12,8 @@ func RenderSplash(width, height int) string {
 		logo,
 		"",
 		Text.Render("ready when you are"),
+		"",
+		Sub.Render("made with <3 by nxck"),
 	)
 	return Frame(width, height, content, "press any key to begin · ctrl+c quit")
 }
