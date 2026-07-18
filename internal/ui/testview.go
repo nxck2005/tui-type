@@ -38,7 +38,8 @@ func RenderTest(e *test.Engine, durIdx int, cursorVisible bool, width, height in
 		help = "type to begin · ←/→ time · tab words · esc profile"
 	}
 
-	wordsBlock := renderWords(e, cursorVisible, min(width-8, 66))
+	streamWidth := max(min(width-8, 66), 10)
+	wordsBlock := renderWords(e, cursorVisible, streamWidth)
 	content := lipgloss.JoinVertical(lipgloss.Center, hud, "", wordsBlock)
 	return Frame(width, height, content, help)
 }
@@ -85,7 +86,9 @@ func renderWords(e *test.Engine, cursorVisible bool, maxW int) string {
 		for i := ln.start; i < ln.end; i++ {
 			ws = append(ws, renderWord(e.Words[i], i == e.Cur, i < e.Cur, cursorVisible))
 		}
-		out = append(out, strings.Join(ws, " "))
+		// Keep the stream's footprint fixed so its centered container does not
+		// shift horizontally as the current line grows or wraps.
+		out = append(out, lipgloss.NewStyle().Width(maxW).Render(strings.Join(ws, " ")))
 	}
 	return strings.Join(out, "\n")
 }
