@@ -25,11 +25,20 @@ var (
 	Caret  = lipgloss.NewStyle().Foreground(ColorBg).Background(ColorAccent)
 )
 
-// Frame centers content in the window with a dim help line at the bottom.
+// Frame centers content in a btop-inspired window frame with a dim help line
+// pinned inside its bottom edge.
 func Frame(width, height int, content, help string) string {
-	if width <= 0 || height <= 2 {
+	if width <= 2 || height <= 4 {
 		return content
 	}
-	main := lipgloss.Place(width, height-2, lipgloss.Center, lipgloss.Center, content)
-	return main + "\n" + lipgloss.PlaceHorizontal(width, lipgloss.Center, Sub.Render(help)) + "\n"
+	innerWidth, innerHeight := width-2, height-2
+	main := lipgloss.Place(innerWidth, innerHeight-2, lipgloss.Center, lipgloss.Center, content)
+	footer := lipgloss.PlaceHorizontal(innerWidth, lipgloss.Center, Sub.Render(help))
+	inside := main + "\n" + footer
+	return lipgloss.NewStyle().
+		Width(innerWidth).
+		Height(innerHeight).
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(ColorAccent).
+		Render(inside)
 }

@@ -16,7 +16,8 @@ import (
 type screen int
 
 const (
-	screenTest screen = iota
+	screenSplash screen = iota
+	screenTest
 	screenResult
 	screenProfile
 )
@@ -84,6 +85,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		switch m.scr {
+		case screenSplash:
+			m.scr = screenTest
+			return m, nil
 		case screenTest:
 			return m.updateTest(msg)
 		case screenResult:
@@ -203,6 +207,8 @@ func (m Model) recordAbort() {
 
 func (m Model) View() string {
 	switch m.scr {
+	case screenSplash:
+		return ui.RenderSplash(m.width, m.height)
 	case screenResult:
 		return ui.RenderResult(m.lastResult, m.lastDur, m.newPB, m.width, m.height)
 	case screenProfile:

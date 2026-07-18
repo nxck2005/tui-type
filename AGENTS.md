@@ -93,3 +93,20 @@ all adapt. Don't hardcode durations anywhere else.
 Punctuation/numbers toggles, multiple themes, other languages/word lists,
 word-count & quote modes. The engine treats the word stream generically, so
 these slot in via `words` + a small amount of picker UI.
+
+# Guidelines
+
+## Usage and efficiency rules
+
+- Read only files relevant to the requested task.
+- Do not scan the entire repository unless necessary.
+- Start with targeted searches such as `rg`, `git status`, and `git diff`.
+- Prefer focused tests before running the complete test suite.
+- Batch related edits into one implementation pass.
+- Do not repeatedly summarize unchanged context.
+- Keep explanations concise and avoid printing complete files.
+- Do not investigate unrelated warnings or pre-existing failures.
+- Stop once the stated acceptance criteria are satisfied.
+- Ask for clarification only when proceeding would likely cause incorrect work.
+- Escalate model or reasoning effort only after the current setting fails or the task is clearly complex.
+- Never use Max, Extra High, or Ultra reasoning for routine edits.
