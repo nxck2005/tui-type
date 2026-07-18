@@ -13,7 +13,7 @@ import (
 
 // RenderTest draws the typing screen: duration picker (idle) or timer HUD
 // (running), the word stream, and a help line.
-func RenderTest(e *test.Engine, durIdx int, cursorVisible bool, width, height int) string {
+func RenderTest(e *test.Engine, durIdx int, cursorVisible, exitHint bool, width, height int) string {
 	if width <= 0 {
 		return ""
 	}
@@ -41,7 +41,7 @@ func RenderTest(e *test.Engine, durIdx int, cursorVisible bool, width, height in
 	streamWidth := max(min(width-8, 66), 10)
 	wordsBlock := renderWords(e, cursorVisible, streamWidth)
 	content := lipgloss.JoinVertical(lipgloss.Center, hud, "", wordsBlock)
-	return Frame(width, height, content, help)
+	return Frame(width, height, content, help, exitNotice(exitHint))
 }
 
 // renderWords lays out the word stream, keeping the current word's line in

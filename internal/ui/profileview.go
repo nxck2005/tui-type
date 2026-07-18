@@ -13,7 +13,7 @@ import (
 
 // RenderProfile draws the profile tab: lifetime totals, all-time stats,
 // personal bests per duration, and recent tests.
-func RenderProfile(data stats.Data, width, height int) string {
+func RenderProfile(data stats.Data, exitHint bool, width, height int) string {
 	agg := stats.Aggregate(data.Results)
 
 	kv := func(label, value string) string {
@@ -63,7 +63,7 @@ func RenderProfile(data stats.Data, width, height int) string {
 	}
 	rows = append(rows, "", Sub.Render("made with <3 by nxck"))
 	content := lipgloss.JoinVertical(lipgloss.Center, rows...)
-	return Frame(width, height, content, "esc back")
+	return Frame(width, height, content, "esc back", exitNotice(exitHint))
 }
 
 // renderBests shows one two-line cell per configured duration.

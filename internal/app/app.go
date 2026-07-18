@@ -27,6 +27,7 @@ type tickMsg time.Time
 const (
 	cursorIdleDelay   = 500 * time.Millisecond
 	cursorBlinkPeriod = 500 * time.Millisecond
+	escHintThreshold  = 3
 )
 
 func tick() tea.Cmd {
@@ -48,6 +49,8 @@ type Model struct {
 
 	lastInput     time.Time
 	cursorVisible bool
+	escPresses    int
+	exitHint      bool
 }
 
 // New builds the initial model, defaulting to the 30-second mode.
@@ -95,6 +98,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.recordAbort()
 			return m, tea.Quit
 		}
+		m.trackEscape(msg.Type)
 		switch m.scr {
 		case screenSplash:
 			m.scr = screenTest
@@ -109,6 +113,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// trackEscape surfaces the terminal's exit shortcut after repeated attempts
+// to leave with Esc. Any other key starts a new sequence.
+func (m *Model) trackEscape(key tea.KeyType) {
+	if key == tea.KeyEsc {
+		m.escPresses++
+		m.exitHint = m.escPresses >= escHintThreshold
+		return
+	}
+	m.escPresses = 0
+	m.exitHint = false
 }
 
 func (m Model) updateTest(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -247,10 +263,10 @@ func (m Model) View() string {
 	case screenSplash:
 		return ui.RenderSplash(m.width, m.height)
 	case screenResult:
-		return ui.RenderResult(m.lastResult, m.lastDur, m.newPB, m.width, m.height)
+		return ui.RenderResult(m.lastResult, m.lastDur, m.newPB, m.exitHint, m.width, m.height)
 	case screenProfile:
-		return ui.RenderProfile(m.store.Data, m.width, m.height)
+		return ui.RenderProfile(m.store.Data, m.exitHint, m.width, m.height)
 	default:
-		return ui.RenderTest(m.engine, m.durIdx, m.cursorVisible, m.width, m.height)
+		return ui.RenderTest(m.engine, m.durIdx, m.cursorVisible, m.exitHint, m.width, m.height)
 	}
 }

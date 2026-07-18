@@ -25,16 +25,24 @@ var (
 	Caret  = lipgloss.NewStyle().Foreground(ColorBg).Background(ColorAccent)
 )
 
+func exitNotice(exitHint bool) string {
+	if exitHint {
+		return Accent.Bold(true).Render("press ctrl-c to exit")
+	}
+	return ""
+}
+
 // Frame centers content in a btop-inspired window frame with a dim help line
-// pinned inside its bottom edge.
-func Frame(width, height int, content, help string) string {
-	if width <= 2 || height <= 4 {
+// pinned inside its bottom edge. notice occupies a reserved header row.
+func Frame(width, height int, content, help, notice string) string {
+	if width <= 2 || height <= 6 {
 		return content
 	}
 	innerWidth, innerHeight := width-2, height-2
-	main := lipgloss.Place(innerWidth, innerHeight-2, lipgloss.Center, lipgloss.Center, content)
+	header := lipgloss.PlaceHorizontal(innerWidth, lipgloss.Center, notice)
+	main := lipgloss.Place(innerWidth, innerHeight-4, lipgloss.Center, lipgloss.Center, content)
 	footer := lipgloss.PlaceHorizontal(innerWidth, lipgloss.Center, Sub.Render(help))
-	inside := main + "\n" + footer
+	inside := header + "\n" + main + "\n" + footer
 	return lipgloss.NewStyle().
 		Width(innerWidth).
 		Height(innerHeight).

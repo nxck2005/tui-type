@@ -15,5 +15,5 @@ func RenderSplash(width, height int) string {
 		"",
 		Sub.Render("made with <3 by nxck"),
 	)
-	return Frame(width, height, content, "press any key to begin · ctrl+c quit")
+	return Frame(width, height, content, "press any key to begin · ctrl+c quit", "")
 }

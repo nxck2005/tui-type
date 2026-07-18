@@ -10,7 +10,7 @@ import (
 )
 
 // RenderResult draws the post-test results screen.
-func RenderResult(res test.Result, durationSec int, newPB bool, width, height int) string {
+func RenderResult(res test.Result, durationSec int, newPB, exitHint bool, width, height int) string {
 	stat := func(label, value string) string {
 		return lipgloss.JoinVertical(lipgloss.Left, Sub.Render(label), Big.Render(value))
 	}
@@ -39,7 +39,7 @@ func RenderResult(res test.Result, durationSec int, newPB bool, width, height in
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Center, rows...)
-	return Frame(width, height, content, "tab next test · esc menu")
+	return Frame(width, height, content, "tab next test · esc menu", exitNotice(exitHint))
 }
 
 var sparkLevels = []rune("▁▂▃▄▅▆▇█")
