@@ -13,7 +13,7 @@ import (
 
 // RenderTest draws the typing screen: duration picker (idle) or timer HUD
 // (running), the word stream, and a help line.
-func RenderTest(e *test.Engine, durIdx, width, height int) string {
+func RenderTest(e *test.Engine, durIdx int, cursorVisible bool, width, height int) string {
 	if width <= 0 {
 		return ""
 	}
@@ -38,14 +38,14 @@ func RenderTest(e *test.Engine, durIdx, width, height int) string {
 		help = "type to begin · ←/→ time · tab words · esc profile"
 	}
 
-	wordsBlock := renderWords(e, min(width-8, 66))
+	wordsBlock := renderWords(e, cursorVisible, min(width-8, 66))
 	content := lipgloss.JoinVertical(lipgloss.Center, hud, "", wordsBlock)
 	return Frame(width, height, content, help)
 }
 
 // renderWords lays out the word stream, keeping the current word's line in
 // view with one line of context above and below.
-func renderWords(e *test.Engine, maxW int) string {
+func renderWords(e *test.Engine, cursorVisible bool, maxW int) string {
 	if maxW < 10 {
 		maxW = 10
 	}
@@ -83,7 +83,7 @@ func renderWords(e *test.Engine, maxW int) string {
 	for _, ln := range lines[first:last] {
 		var ws []string
 		for i := ln.start; i < ln.end; i++ {
-			ws = append(ws, renderWord(e.Words[i], i == e.Cur, i < e.Cur))
+			ws = append(ws, renderWord(e.Words[i], i == e.Cur, i < e.Cur, cursorVisible))
 		}
 		out = append(out, strings.Join(ws, " "))
 	}
@@ -101,7 +101,7 @@ func wordWidth(e *test.Engine, i int) int {
 	return n
 }
 
-func renderWord(w test.Word, current, committed bool) string {
+func renderWord(w test.Word, current, committed, cursorVisible bool) string {
 	var b strings.Builder
 	n := max(len(w.Target), len(w.Typed))
 	underline := committed && !w.FullyCorrect()
@@ -121,7 +121,7 @@ func renderWord(w test.Word, current, committed bool) string {
 		default: // not yet typed
 			ch, st = w.Target[j], Sub
 		}
-		if current && j == len(w.Typed) {
+		if current && cursorVisible && j == len(w.Typed) {
 			st = Caret
 		}
 		if underline {
@@ -129,7 +129,7 @@ func renderWord(w test.Word, current, committed bool) string {
 		}
 		b.WriteString(st.Render(string(ch)))
 	}
-	if current && len(w.Typed) >= n {
+	if current && cursorVisible && len(w.Typed) >= n {
 		b.WriteString(Caret.Render(" "))
 	}
 	return b.String()

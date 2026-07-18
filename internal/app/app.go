@@ -24,6 +24,11 @@ const (
 
 type tickMsg time.Time
 
+const (
+	cursorIdleDelay   = 500 * time.Millisecond
+	cursorBlinkPeriod = 500 * time.Millisecond
+)
+
 func tick() tea.Cmd {
 	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
@@ -40,6 +45,9 @@ type Model struct {
 	lastResult test.Result
 	lastDur    int
 	newPB      bool
+
+	lastInput     time.Time
+	cursorVisible bool
 }
 
 // New builds the initial model, defaulting to the 30-second mode.
@@ -51,9 +59,11 @@ func New(store *stats.Store) Model {
 		}
 	}
 	return Model{
-		store:  store,
-		durIdx: durIdx,
-		engine: newEngine(durIdx),
+		store:         store,
+		durIdx:        durIdx,
+		engine:        newEngine(durIdx),
+		lastInput:     time.Now(),
+		cursorVisible: true,
 	}
 }
 
@@ -71,12 +81,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		if m.scr != screenTest || !m.engine.Started() {
+		if m.scr != screenTest {
 			return m, nil
 		}
-		if m.engine.Finished() {
+		if m.engine.Started() && m.engine.Finished() {
 			return m.finishTest(), nil
 		}
+		m.updateCursor(time.Time(msg))
 		return m, tick()
 
 	case tea.KeyMsg:
@@ -87,7 +98,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.scr {
 		case screenSplash:
 			m.scr = screenTest
-			return m, nil
+			m.wakeCursor()
+			return m, tick()
 		case screenTest:
 			return m.updateTest(msg)
 		case screenResult:
@@ -105,11 +117,13 @@ func (m Model) updateTest(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyTab:
 		m.recordAbort()
 		m.engine = newEngine(m.durIdx)
+		m.wakeCursor()
 		return m, nil
 	case tea.KeyEsc:
 		if running {
 			m.recordAbort()
 			m.engine = newEngine(m.durIdx)
+			m.wakeCursor()
 		} else {
 			m.scr = screenProfile
 		}
@@ -127,15 +141,19 @@ func (m Model) updateTest(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyBackspace:
+		m.wakeCursor()
 		m.engine.Backspace()
 		return m, nil
 	case tea.KeyCtrlW, tea.KeyCtrlH:
+		m.wakeCursor()
 		m.engine.BackspaceWord()
 		return m, nil
 	case tea.KeySpace:
+		m.wakeCursor()
 		m.engine.Space()
 		return m, nil
 	case tea.KeyRunes:
+		m.wakeCursor()
 		for _, r := range msg.Runes {
 			if r == ' ' {
 				m.engine.Space()
@@ -156,6 +174,8 @@ func (m Model) updateResult(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyTab, tea.KeyEsc, tea.KeyEnter:
 		m.engine = newEngine(m.durIdx)
 		m.scr = screenTest
+		m.wakeCursor()
+		return m, tick()
 	}
 	return m, nil
 }
@@ -164,8 +184,25 @@ func (m Model) updateProfile(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyTab, tea.KeyEsc:
 		m.scr = screenTest
+		m.wakeCursor()
+		return m, tick()
 	}
 	return m, nil
+}
+
+// wakeCursor keeps the caret solid while the user is actively typing.
+func (m *Model) wakeCursor() {
+	m.lastInput = time.Now()
+	m.cursorVisible = true
+}
+
+func (m *Model) updateCursor(now time.Time) {
+	idle := now.Sub(m.lastInput)
+	if idle < cursorIdleDelay {
+		m.cursorVisible = true
+		return
+	}
+	m.cursorVisible = int(idle/cursorBlinkPeriod)%2 == 0
 }
 
 // finishTest computes metrics, persists the result, and shows the results
@@ -214,6 +251,6 @@ func (m Model) View() string {
 	case screenProfile:
 		return ui.RenderProfile(m.store.Data, m.width, m.height)
 	default:
-		return ui.RenderTest(m.engine, m.durIdx, m.width, m.height)
+		return ui.RenderTest(m.engine, m.durIdx, m.cursorVisible, m.width, m.height)
 	}
 }
