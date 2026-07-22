@@ -28,7 +28,9 @@ go vet ./... && gofmt -l .
   results.json`, fallback `~/.local/share/…`.
 - `internal/ui` — pure render functions (state in, styled string out). No
   model logic. Serika Dark palette in `theme.go`; `Frame()` centers content
-  and pins the help line.
+  and pins the help line. Below `MinWidth`×`MinHeight` (`toosmall.go`,
+  60×18) every screen is replaced by a btop-style prompt — gated in one
+  place at the top of `Model.View`.
 - `internal/app` — the single Bubble Tea model: screen enum (test/result/
   profile), key routing, tick loop (100ms, armed on first keystroke),
   persistence calls.
@@ -73,7 +75,9 @@ all adapt. Don't hardcode durations anywhere else.
 - **`lipgloss.JoinVertical(lipgloss.Center, …)` re-centers each line
   independently** — table rows of different widths shift against each other.
   Fix: pad the *last* column too so all rows are equal width (see `row()`
-  in `ui/profileview.go`).
+  in `ui/profileview.go`). Same trap for the dot-joined stat rows: a single
+  long line wider than the frame wraps mid-item and each fragment recenters.
+  Fix: `flowJoin()` packs items into lines ≤ `width-2` before centering.
 - Only ~40 words past `Engine.Cur` are laid out per frame (`renderWords`
   `limit`) — the word list grows unboundedly during a test; don't render it
   all.
