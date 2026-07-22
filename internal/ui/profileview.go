@@ -20,29 +20,32 @@ func RenderProfile(data stats.Data, exitHint bool, width, height int) string {
 		return Sub.Render(label+" ") + Text.Render(value)
 	}
 	dot := Sub.Render("  ·  ")
+	// Reflow dot-joined stat rows so they never exceed the frame's inner
+	// width; a single overflowing line wraps mid-item and breaks the border.
+	maxw := width - 2
 
-	totals := strings.Join([]string{
+	totals := flowJoin(maxw, dot,
 		kv("tests started", fmt.Sprintf("%d", data.Totals.Started)),
 		kv("tests completed", fmt.Sprintf("%d", data.Totals.Completed)),
 		kv("time typing", fmtTyping(data.Totals.TimeTypingSecs)),
-	}, dot)
+	)
 
 	var allTime, bests, recent string
 	if len(data.Results) == 0 {
 		allTime = Sub.Render("no tests yet — go type something")
 	} else {
 		allTime = lipgloss.JoinVertical(lipgloss.Center,
-			strings.Join([]string{
+			flowJoin(maxw, dot,
 				kv("highest wpm", fmt.Sprintf("%.0f", agg.HighestWPM)),
 				kv("average wpm", fmt.Sprintf("%.0f", agg.AvgWPM)),
 				kv("avg last 10", fmt.Sprintf("%.0f", agg.AvgWPMLast10)),
-			}, dot),
-			strings.Join([]string{
+			),
+			flowJoin(maxw, dot,
 				kv("highest raw", fmt.Sprintf("%.0f", agg.HighestRaw)),
 				kv("highest acc", fmt.Sprintf("%.0f%%", agg.HighestAcc)),
 				kv("avg acc", fmt.Sprintf("%.0f%%", agg.AvgAcc)),
 				kv("avg consistency", fmt.Sprintf("%.0f%%", agg.AvgConsistency)),
-			}, dot),
+			),
 		)
 		bests = renderBests(agg.PBs)
 		recent = renderRecent(data.Results)
@@ -64,6 +67,31 @@ func RenderProfile(data stats.Data, exitHint bool, width, height int) string {
 	rows = append(rows, "", Sub.Render("made with <3 by nxck"))
 	content := lipgloss.JoinVertical(lipgloss.Center, rows...)
 	return Frame(width, height, content, "esc back", exitNotice(exitHint))
+}
+
+// flowJoin packs styled items into centered lines no wider than maxWidth,
+// separating items on a line with sep. Keeps long stat rows from overflowing
+// the frame and wrapping mid-item at small terminal sizes.
+func flowJoin(maxWidth int, sep string, items ...string) string {
+	sepW := lipgloss.Width(sep)
+	var lines []string
+	cur, curW := "", 0
+	for _, it := range items {
+		w := lipgloss.Width(it)
+		switch {
+		case cur == "":
+			cur, curW = it, w
+		case curW+sepW+w <= maxWidth:
+			cur, curW = cur+sep+it, curW+sepW+w
+		default:
+			lines = append(lines, cur)
+			cur, curW = it, w
+		}
+	}
+	if cur != "" {
+		lines = append(lines, cur)
+	}
+	return lipgloss.JoinVertical(lipgloss.Center, lines...)
 }
 
 // renderBests shows one two-line cell per configured duration.

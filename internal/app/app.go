@@ -259,6 +259,9 @@ func (m Model) recordAbort() {
 }
 
 func (m Model) View() string {
+	if ui.TooSmall(m.width, m.height) {
+		return ui.RenderTooSmall(m.width, m.height)
+	}
 	switch m.scr {
 	case screenSplash:
 		return ui.RenderSplash(m.width, m.height)
