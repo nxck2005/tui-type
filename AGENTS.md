@@ -10,7 +10,7 @@ Bubble Tea **v1.3** and Lipgloss **v1.1** — the v1 APIs (`tea.KeyMsg`,
 
 ```sh
 go build -o tui-type .   # binary is gitignored
-go test ./...            # engine + stats tests; all pure logic, no TUI mocks
+go test ./...            # engine, app, stats, UI, and word-source behavior
 go vet ./... && gofmt -l .
 ```
 
@@ -31,9 +31,10 @@ go vet ./... && gofmt -l .
   and pins the help line. Below `MinWidth`×`MinHeight` (`toosmall.go`,
   60×18) every screen is replaced by a btop-style prompt — gated in one
   place at the top of `Model.View`.
-- `internal/app` — the single Bubble Tea model: screen enum (test/result/
-  profile), key routing, tick loop (100ms, armed on first keystroke),
-  persistence calls.
+- `internal/app` — the single Bubble Tea model: screen enum (splash/test/
+  result/profile), key routing, generation-scoped tick loop (100ms, armed on
+  the first accepted character), persistence calls. Tick generations keep
+  delayed messages from aborted/restarted tests from attaching to a new test.
 
 **The extension point the whole design hangs off:** `Durations` slice in
 `internal/test/engine.go`. Add an int there → picker, PB table, and storage
@@ -55,6 +56,10 @@ all adapt. Don't hardcode durations anywhere else.
 - Aborted tests (esc/tab/ctrl+c mid-test) count toward "tests started" and
   time typing but produce no Result. Store failures on finish are swallowed
   on purpose — a lost save must not crash a finished test.
+- The deadline belongs to the completed state: engine mutations are accepted
+  strictly before it and rejected at/after it. A key arriving after expiry
+  finishes immediately instead of waiting for the next tick; `ctrl+c` in that
+  window saves the completed result before quitting.
 
 ## Gotchas learned the hard way
 
@@ -89,6 +94,10 @@ all adapt. Don't hardcode durations anywhere else.
 - gofmt-clean is enforced by habit; run it before finishing.
 - Engine tests use `fixedGen(...)` for deterministic words and advance the
   fake clock via the returned `*time.Time`.
+- App tests use deterministic engines and temporary stats stores. Tick tests
+  construct generation-tagged messages directly; never sleep on `tea.Tick`.
+- Profile render tests use `renderProfileAt` with a fixed timestamp so
+  relative-time assertions do not depend on the wall clock.
 - Comments state constraints/behaviors the code can't show (monkeytype
   parity rules), not narration.
 

@@ -5,7 +5,9 @@ Date: 2026-07-19
 Status update (2026-07-24): Phase 1's deadline issue is resolved. The engine
 rejects mutations at and after the deadline, key events finalize an expired
 test immediately, and generation-scoped ticks prevent duplicate or stale tick
-loops. The remaining findings and later phases are unchanged.
+loops. Behavior tests now cover the engine, app, stats, UI, and word source;
+the result-screen navigation label is also corrected. The remaining findings
+and later phases are unchanged unless noted below.
 
 ## Executive assessment
 
@@ -19,9 +21,10 @@ languages, punctuation, quotes, or word-count tests, it needs a persistent
 test-configuration identity. Otherwise results and personal bests from
 materially different tests will be mixed together.
 
-The most important current correctness issue is at the test deadline:
-keystrokes can still be accepted after time expires but before the next 100 ms
-application tick notices the expiry.
+At the time of this review, the most important correctness issue was at the
+test deadline: keystrokes could be accepted after time expired but before the
+next 100 ms application tick noticed the expiry. This was resolved on
+2026-07-24.
 
 ## Current architecture
 
@@ -108,7 +111,7 @@ the data and engine levels today.
 
 ## Findings and risks
 
-### High: input can be accepted after the deadline
+### High (resolved 2026-07-24): input can be accepted after the deadline
 
 Completion is checked only when the 100 ms tick arrives in
 `internal/app/app.go`. A key event arriving after the exact deadline but before
@@ -123,6 +126,11 @@ duration.
 There is a related exit case: `ctrl+c` in this interval sees a finished engine,
 does not record an abort, and quits before the pending tick persists the
 completed result.
+
+Resolution: all engine mutators now enforce the deadline using one captured
+timestamp. The app finalizes an expired test before routing a key, including
+saving a completed result before deadline-time `ctrl+c`. Ticks carry a
+generation so stale or duplicate loops cannot survive a restart.
 
 ### High for future features: results have insufficient identity
 
@@ -155,7 +163,7 @@ profile contains fixed-width tables and as many as ten recent-result rows.
 The duration extension point also has a visual limit: every new duration adds
 another fixed-width personal-best cell.
 
-### Medium: orchestration is barely tested
+### Medium (substantially resolved 2026-07-24): orchestration is barely tested
 
 Coverage during this review was:
 
@@ -171,11 +179,18 @@ The missing application tests cover the riskiest integration behavior:
 first-key timing, tick completion, abort persistence, duration navigation,
 paste input, screen transitions, and save failure.
 
+Behavior tests now cover those application paths except save-failure behavior,
+which depends on the transactional persistence work in Phase 2. Current
+statement coverage is 86.3% for `internal/app`, 98.2% for `internal/test`,
+91.1% for `internal/stats`, 96.5% for `internal/ui`, and 100% for
+`internal/words`.
+
 ### Low: "pure UI" is slightly overstated
 
 `RenderTest` accepts a live `*test.Engine` and calls time-dependent methods.
-Profile rendering also calls `time.Since`. The functions do not mutate state,
-but identical arguments can produce different output as wall time changes.
+The public profile renderer captures `time.Now` before delegating to a
+deterministic helper. The functions do not mutate state, but identical public
+arguments can still produce different output as wall time changes.
 
 ### Low: future language support needs display-width semantics
 
@@ -184,10 +199,10 @@ terminal cell width. Wide characters and combining marks will break alignment.
 Input normalization also needs an explicit policy before non-English lists are
 added.
 
-### Minor: results help text disagrees with navigation
+### Minor (resolved 2026-07-24): results help text disagrees with navigation
 
-The results footer says `esc menu`, but `esc` creates a fresh test. The README
-describes the implementation correctly.
+The results footer said `esc menu`, but `esc` creates a fresh test. It now says
+`esc new test`.
 
 ## Remediation plan
 
@@ -195,7 +210,7 @@ The steps below are intentionally ordered. The early phases fix current
 correctness without forcing a speculative redesign; the later phases prepare
 specific future features.
 
-### Phase 1: enforce the test deadline
+### Phase 1: enforce the test deadline (completed 2026-07-24)
 
 1. Add a single engine-level predicate that determines whether mutating input
    is still accepted.

@@ -25,7 +25,11 @@ Timed modes: **10 / 15 / 30 / 60 / 120** seconds (defined in one slice in
 | `esc` | test (running) | stop the test |
 | `ctrl+w` / `ctrl+h` | test | delete current word |
 | `tab` / `esc` | results / profile | back to a fresh test |
-| `ctrl+c` | anywhere | quit |
+| `ctrl+c` | anywhere | quit (an expired running test is saved first) |
+
+The clock is enforced at the engine boundary: input is accepted strictly
+before the deadline and ignored at or after it, even if the next 100 ms UI
+tick has not arrived yet.
 
 ## Stats
 
