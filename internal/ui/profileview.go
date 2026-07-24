@@ -14,6 +14,10 @@ import (
 // RenderProfile draws the profile tab: lifetime totals, all-time stats,
 // personal bests per duration, and recent tests.
 func RenderProfile(data stats.Data, exitHint bool, width, height int) string {
+	return renderProfileAt(data, exitHint, width, height, time.Now())
+}
+
+func renderProfileAt(data stats.Data, exitHint bool, width, height int, now time.Time) string {
 	agg := stats.Aggregate(data.Results)
 
 	kv := func(label, value string) string {
@@ -48,7 +52,7 @@ func RenderProfile(data stats.Data, exitHint bool, width, height int) string {
 			),
 		)
 		bests = renderBests(agg.PBs)
-		recent = renderRecent(data.Results)
+		recent = renderRecent(data.Results, now)
 	}
 
 	rows := []string{
@@ -112,7 +116,7 @@ func renderBests(pbs map[int]stats.Result) string {
 }
 
 // renderRecent shows the last 10 results, newest first.
-func renderRecent(results []stats.Result) string {
+func renderRecent(results []stats.Result, now time.Time) string {
 	n := min(len(results), 10)
 	// The last column is padded too so every row has the same width and
 	// centered joining can't shift them against each other.
@@ -129,7 +133,7 @@ func renderRecent(results []stats.Result) string {
 			fmt.Sprintf("%.0f%%", r.Accuracy),
 			fmt.Sprintf("%.0f%%", r.Consistency),
 			fmt.Sprintf("%ds", r.DurationSec),
-			relWhen(r.Timestamp),
+			relWhen(r.Timestamp, now),
 		)))
 	}
 	return strings.Join(lines, "\n")
@@ -148,8 +152,8 @@ func fmtTyping(secs float64) string {
 	}
 }
 
-func relWhen(t time.Time) string {
-	d := time.Since(t)
+func relWhen(t, now time.Time) string {
+	d := now.Sub(t)
 	switch {
 	case d < time.Minute:
 		return "just now"

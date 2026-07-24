@@ -2,6 +2,7 @@ package test
 
 import (
 	"math"
+	"slices"
 	"testing"
 	"time"
 )
@@ -153,6 +154,11 @@ func TestFinished(t *testing.T) {
 	if e.Remaining() != 0 {
 		t.Errorf("Remaining = %v, want 0", e.Remaining())
 	}
+
+	*now = now.Add(time.Second)
+	if e.Elapsed() != 10*time.Second {
+		t.Errorf("Elapsed = %v, want capped 10s", e.Elapsed())
+	}
 }
 
 func TestConsistencyPerfectlySteady(t *testing.T) {
@@ -177,5 +183,123 @@ func TestWordStreamExtends(t *testing.T) {
 	}
 	if len(e.Words) <= initial {
 		t.Error("word stream did not extend")
+	}
+}
+
+func TestInputDeadline(t *testing.T) {
+	e, now := newTestEngine(2, fixedGen("abc", "def"))
+	e.Type('a')
+
+	*now = now.Add(2*time.Second - time.Nanosecond)
+	e.Type('b')
+
+	wantTyped := string(e.Words[0].Typed)
+	wantCur := e.Cur
+	wantKeypresses := e.keypresses
+	wantCorrect := e.correctPresses
+	wantPerSecond := slices.Clone(e.perSecChars)
+
+	assertUnchanged := func(label string) {
+		t.Helper()
+		if got := string(e.Words[0].Typed); got != wantTyped {
+			t.Errorf("%s: typed = %q, want %q", label, got, wantTyped)
+		}
+		if e.Cur != wantCur || e.keypresses != wantKeypresses || e.correctPresses != wantCorrect {
+			t.Errorf("%s: state changed: cur=%d keys=%d correct=%d", label, e.Cur, e.keypresses, e.correctPresses)
+		}
+		if !slices.Equal(e.perSecChars, wantPerSecond) {
+			t.Errorf("%s: per-second chars = %v, want %v", label, e.perSecChars, wantPerSecond)
+		}
+	}
+
+	*now = now.Add(time.Nanosecond) // exact deadline
+	e.Type('c')
+	e.Space()
+	e.Backspace()
+	e.BackspaceWord()
+	assertUnchanged("at deadline")
+
+	*now = now.Add(time.Second)
+	e.Type('c')
+	e.Space()
+	e.Backspace()
+	e.BackspaceWord()
+	assertUnchanged("after deadline")
+
+	res := e.Result()
+	if res.Raw != 12 {
+		t.Errorf("Raw = %v, want 12", res.Raw)
+	}
+	if !slices.Equal(res.RawPerSecond, []float64{12, 12}) {
+		t.Errorf("RawPerSecond = %v, want [12 12]", res.RawPerSecond)
+	}
+}
+
+func TestBackspaceWord(t *testing.T) {
+	e, _ := newTestEngine(60, fixedGen("the", "and"))
+	typeString(e, "tx")
+	e.BackspaceWord()
+	if got := string(e.Words[0].Typed); got != "" {
+		t.Errorf("current typed = %q, want empty", got)
+	}
+
+	typeString(e, "tx ")
+	e.BackspaceWord()
+	if e.Cur != 0 {
+		t.Fatalf("Cur = %d, want 0 after re-entering incorrect word", e.Cur)
+	}
+	if got := string(e.Words[0].Typed); got != "" {
+		t.Errorf("re-entered typed = %q, want empty", got)
+	}
+}
+
+func TestLiveWPM(t *testing.T) {
+	e, now := newTestEngine(60, fixedGen("abc"))
+	if e.LiveWPM() != 0 {
+		t.Fatal("unstarted LiveWPM should be zero")
+	}
+	e.Type('a')
+	*now = now.Add(30 * time.Second)
+	if got := e.LiveWPM(); math.Abs(got-0.4) > 1e-9 {
+		t.Errorf("LiveWPM = %v, want 0.4", got)
+	}
+}
+
+func TestMaxExtraCharacters(t *testing.T) {
+	e, _ := newTestEngine(60, fixedGen("a"))
+	e.Type('a')
+	for range maxExtra + 1 {
+		e.Type('x')
+	}
+	if got := len(e.Words[0].Typed); got != 1+maxExtra {
+		t.Errorf("typed length = %d, want %d", got, 1+maxExtra)
+	}
+	if e.keypresses != 1+maxExtra {
+		t.Errorf("keypresses = %d, want %d", e.keypresses, 1+maxExtra)
+	}
+}
+
+func TestWordCorrectness(t *testing.T) {
+	tests := []struct {
+		name   string
+		word   Word
+		full   bool
+		prefix bool
+	}{
+		{name: "empty prefix", word: Word{Target: []rune("the")}, prefix: true},
+		{name: "correct prefix", word: Word{Target: []rune("the"), Typed: []rune("th")}, prefix: true},
+		{name: "wrong prefix", word: Word{Target: []rune("the"), Typed: []rune("tx")}},
+		{name: "extra", word: Word{Target: []rune("the"), Typed: []rune("thee")}},
+		{name: "fully correct", word: Word{Target: []rune("the"), Typed: []rune("the")}, full: true, prefix: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.word.FullyCorrect(); got != tt.full {
+				t.Errorf("FullyCorrect = %v, want %v", got, tt.full)
+			}
+			if got := tt.word.PrefixCorrect(); got != tt.prefix {
+				t.Errorf("PrefixCorrect = %v, want %v", got, tt.prefix)
+			}
+		})
 	}
 }

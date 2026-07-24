@@ -22,7 +22,10 @@ const (
 	screenProfile
 )
 
-type tickMsg time.Time
+type tickMsg struct {
+	at         time.Time
+	generation uint64
+}
 
 const (
 	cursorIdleDelay   = 500 * time.Millisecond
@@ -30,8 +33,10 @@ const (
 	escHintThreshold  = 3
 )
 
-func tick() tea.Cmd {
-	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })
+func tick(generation uint64) tea.Cmd {
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+		return tickMsg{at: t, generation: generation}
+	})
 }
 
 // Model is the top-level application state.
@@ -47,10 +52,12 @@ type Model struct {
 	lastDur    int
 	newPB      bool
 
-	lastInput     time.Time
-	cursorVisible bool
-	escPresses    int
-	exitHint      bool
+	lastInput      time.Time
+	cursorVisible  bool
+	escPresses     int
+	exitHint       bool
+	tickGeneration uint64
+	tickActive     bool
 }
 
 // New builds the initial model, defaulting to the 30-second mode.
@@ -84,18 +91,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		if m.scr != screenTest {
+		if !m.tickActive || msg.generation != m.tickGeneration {
 			return m, nil
 		}
-		if m.engine.Started() && m.engine.Finished() {
+		if m.scr != screenTest || !m.engine.Started() {
+			m.stopTick()
+			return m, nil
+		}
+		if m.engine.Finished() {
 			return m.finishTest(), nil
 		}
-		m.updateCursor(time.Time(msg))
-		return m, tick()
+		m.updateCursor(msg.at)
+		return m, tick(m.tickGeneration)
 
 	case tea.KeyMsg:
+		if m.scr == screenTest && m.engine.Started() && m.engine.Finished() {
+			m = m.finishTest()
+			if msg.Type == tea.KeyCtrlC {
+				return m, tea.Quit
+			}
+			return m, nil
+		}
 		if msg.Type == tea.KeyCtrlC {
 			m.recordAbort()
+			m.stopTick()
 			return m, tea.Quit
 		}
 		m.trackEscape(msg.Type)
@@ -103,7 +122,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case screenSplash:
 			m.scr = screenTest
 			m.wakeCursor()
-			return m, tick()
+			return m, nil
 		case screenTest:
 			return m.updateTest(msg)
 		case screenResult:
@@ -132,15 +151,18 @@ func (m Model) updateTest(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyTab:
 		m.recordAbort()
+		m.stopTick()
 		m.engine = newEngine(m.durIdx)
 		m.wakeCursor()
 		return m, nil
 	case tea.KeyEsc:
 		if running {
 			m.recordAbort()
+			m.stopTick()
 			m.engine = newEngine(m.durIdx)
 			m.wakeCursor()
 		} else {
+			m.stopTick()
 			m.scr = screenProfile
 		}
 		return m, nil
@@ -177,8 +199,11 @@ func (m Model) updateTest(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.engine.Type(r)
 			}
 		}
+		if m.engine.Finished() {
+			return m.finishTest(), nil
+		}
 		if !running && m.engine.Started() {
-			return m, tick() // first keystroke arms the clock
+			return m, m.armTick()
 		}
 		return m, nil
 	}
@@ -191,7 +216,7 @@ func (m Model) updateResult(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.engine = newEngine(m.durIdx)
 		m.scr = screenTest
 		m.wakeCursor()
-		return m, tick()
+		return m, nil
 	}
 	return m, nil
 }
@@ -201,7 +226,7 @@ func (m Model) updateProfile(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyTab, tea.KeyEsc:
 		m.scr = screenTest
 		m.wakeCursor()
-		return m, tick()
+		return m, nil
 	}
 	return m, nil
 }
@@ -221,10 +246,24 @@ func (m *Model) updateCursor(now time.Time) {
 	m.cursorVisible = int(idle/cursorBlinkPeriod)%2 == 0
 }
 
+func (m *Model) armTick() tea.Cmd {
+	if m.tickActive {
+		return nil
+	}
+	m.tickGeneration++
+	m.tickActive = true
+	return tick(m.tickGeneration)
+}
+
+func (m *Model) stopTick() {
+	m.tickActive = false
+}
+
 // finishTest computes metrics, persists the result, and shows the results
 // screen. Store failures are ignored deliberately: losing one save must not
 // crash a finished test.
 func (m Model) finishTest() Model {
+	m.stopTick()
 	res := m.engine.Result()
 	dur := m.engine.DurationSec
 

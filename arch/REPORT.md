@@ -2,6 +2,11 @@
 
 Date: 2026-07-19
 
+Status update (2026-07-24): Phase 1's deadline issue is resolved. The engine
+rejects mutations at and after the deadline, key events finalize an expired
+test immediately, and generation-scoped ticks prevent duplicate or stale tick
+loops. The remaining findings and later phases are unchanged.
+
 ## Executive assessment
 
 `tui-type` has a strong architecture for its current scope: it is small,

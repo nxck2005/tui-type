@@ -39,7 +39,7 @@ func RenderResult(res test.Result, durationSec int, newPB, exitHint bool, width,
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Center, rows...)
-	return Frame(width, height, content, "tab next test · esc menu", exitNotice(exitHint))
+	return Frame(width, height, content, "tab next test · esc new test", exitNotice(exitHint))
 }
 
 var sparkLevels = []rune("▁▂▃▄▅▆▇█")

@@ -1,13 +1,14 @@
 package stats
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
 
 func TestStoreRoundTrip(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "results.json")
+	path := filepath.Join(t.TempDir(), "nested", "results.json")
 
 	s, err := Open(path)
 	if err != nil {
@@ -48,6 +49,12 @@ func TestAggregate(t *testing.T) {
 	if a.HighestWPM != 100 || a.AvgWPM != 90 {
 		t.Errorf("wpm high/avg = %v/%v, want 100/90", a.HighestWPM, a.AvgWPM)
 	}
+	if a.AvgWPMLast10 != 90 || a.HighestRaw != 110 || a.HighestAcc != 99 {
+		t.Errorf("highs/last 10 = %+v", a)
+	}
+	if a.AvgAcc != 97 || a.AvgConsistency != 70 {
+		t.Errorf("averages = acc %v consistency %v, want 97/70", a.AvgAcc, a.AvgConsistency)
+	}
 	if a.PBs[15].WPM != 100 || a.PBs[30].WPM != 90 {
 		t.Errorf("PBs = %+v", a.PBs)
 	}
@@ -59,4 +66,70 @@ func TestAggregate(t *testing.T) {
 	if empty.HighestWPM != 0 || len(empty.PBs) != 0 {
 		t.Errorf("empty aggregate = %+v", empty)
 	}
+}
+
+func TestAggregateUsesOnlyLastTenForRecentAverage(t *testing.T) {
+	results := make([]Result, 12)
+	for i := range results {
+		results[i].WPM = float64(i + 1)
+	}
+	a := Aggregate(results)
+	// Results 3 through 12 average to 7.5.
+	if a.AvgWPMLast10 != 7.5 {
+		t.Errorf("AvgWPMLast10 = %v, want 7.5", a.AvgWPMLast10)
+	}
+	if a.AvgWPM != 6.5 {
+		t.Errorf("AvgWPM = %v, want 6.5", a.AvgWPM)
+	}
+}
+
+func TestDefaultPath(t *testing.T) {
+	t.Run("XDG data home", func(t *testing.T) {
+		base := t.TempDir()
+		t.Setenv("XDG_DATA_HOME", base)
+		got, err := DefaultPath()
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := filepath.Join(base, "tui-type", "results.json")
+		if got != want {
+			t.Errorf("DefaultPath = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("home fallback", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("XDG_DATA_HOME", "")
+		t.Setenv("HOME", home)
+		got, err := DefaultPath()
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := filepath.Join(home, ".local", "share", "tui-type", "results.json")
+		if got != want {
+			t.Errorf("DefaultPath = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestOpenMissingAndMalformedFiles(t *testing.T) {
+	t.Run("missing", func(t *testing.T) {
+		s, err := Open(filepath.Join(t.TempDir(), "missing.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.Data.Totals != (Totals{}) || len(s.Data.Results) != 0 {
+			t.Errorf("missing file data = %+v, want empty", s.Data)
+		}
+	})
+
+	t.Run("malformed", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "results.json")
+		if err := os.WriteFile(path, []byte("{not json"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Open(path); err == nil {
+			t.Fatal("Open malformed file returned nil error")
+		}
+	})
 }

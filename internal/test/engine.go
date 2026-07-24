@@ -96,24 +96,34 @@ func (e *Engine) Finished() bool {
 	return e.started && e.Now().Sub(e.startAt) >= time.Duration(e.DurationSec)*time.Second
 }
 
-func (e *Engine) press() {
+// acceptsInput reports whether a mutation observed at now is inside the test
+// window. The deadline itself belongs to the completed test.
+func (e *Engine) acceptsInput(now time.Time) bool {
+	return !e.started || now.Before(e.startAt.Add(time.Duration(e.DurationSec)*time.Second))
+}
+
+func (e *Engine) press(now time.Time) {
 	if !e.started {
 		e.started = true
-		e.startAt = e.Now()
+		e.startAt = now
 	}
 	e.keypresses++
-	if sec := int(e.Now().Sub(e.startAt).Seconds()); sec >= 0 && sec < len(e.perSecChars) {
+	if sec := int(now.Sub(e.startAt).Seconds()); sec >= 0 && sec < len(e.perSecChars) {
 		e.perSecChars[sec]++
 	}
 }
 
 // Type processes a character keystroke.
 func (e *Engine) Type(r rune) {
+	now := e.Now()
+	if !e.acceptsInput(now) {
+		return
+	}
 	w := &e.Words[e.Cur]
 	if len(w.Typed) >= len(w.Target)+maxExtra {
 		return
 	}
-	e.press()
+	e.press(now)
 	if len(w.Typed) < len(w.Target) && w.Target[len(w.Typed)] == r {
 		e.correctPresses++
 	}
@@ -127,7 +137,11 @@ func (e *Engine) Space() {
 	if len(w.Typed) == 0 {
 		return
 	}
-	e.press()
+	now := e.Now()
+	if !e.acceptsInput(now) {
+		return
+	}
+	e.press(now)
 	if w.FullyCorrect() {
 		e.correctPresses++
 	}
@@ -140,6 +154,9 @@ func (e *Engine) Space() {
 // Backspace deletes the last typed character, stepping back into the
 // previous word if it wasn't committed fully correct.
 func (e *Engine) Backspace() {
+	if !e.acceptsInput(e.Now()) {
+		return
+	}
 	w := &e.Words[e.Cur]
 	if len(w.Typed) > 0 {
 		w.Typed = w.Typed[:len(w.Typed)-1]
@@ -152,6 +169,9 @@ func (e *Engine) Backspace() {
 
 // BackspaceWord clears the current word (ctrl+backspace / ctrl+w).
 func (e *Engine) BackspaceWord() {
+	if !e.acceptsInput(e.Now()) {
+		return
+	}
 	w := &e.Words[e.Cur]
 	if len(w.Typed) > 0 {
 		w.Typed = w.Typed[:0]
