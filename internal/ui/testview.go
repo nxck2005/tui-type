@@ -5,6 +5,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -20,9 +21,14 @@ func RenderTest(e *test.Engine, durIdx int, cursorVisible, exitHint bool, width,
 	var hud, help string
 	if e.Started() {
 		secs := int(math.Ceil(e.Remaining().Seconds()))
-		hud = Accent.Render(strconv.Itoa(secs)) +
+		hudLine := Accent.Render(pulseGlyph(e)) + " " + Accent.Render(strconv.Itoa(secs)) +
 			Sub.Render("  ·  ") +
 			Accent.Render(fmt.Sprintf("%.0f wpm", e.LiveWPM()))
+		barWidth := min(max(width-24, 16), 44)
+		hud = lipgloss.JoinVertical(lipgloss.Center,
+			hudLine,
+			Sub.Render("time ")+timeBar(e, barWidth),
+		)
 		help = "tab restart · esc stop"
 	} else {
 		parts := make([]string, len(test.Durations))
@@ -42,6 +48,31 @@ func RenderTest(e *test.Engine, durIdx int, cursorVisible, exitHint bool, width,
 	wordsBlock := renderWords(e, cursorVisible, streamWidth)
 	content := lipgloss.JoinVertical(lipgloss.Center, hud, "", wordsBlock)
 	return Frame(width, height, content, help, exitNotice(exitHint))
+}
+
+var pulseFrames = [...]string{"◐", "◓", "◑", "◒"}
+
+// pulseGlyph gives the running HUD a small Bubbles-style spinner without
+// adding another animation loop; the existing 100 ms test tick drives it.
+func pulseGlyph(e *test.Engine) string {
+	frame := int(e.Elapsed() / (125 * time.Millisecond))
+	if frame < 0 {
+		frame = 0
+	}
+	return pulseFrames[frame%len(pulseFrames)]
+}
+
+// timeBar is a compact progress meter for the running test. Styled segments
+// retain their cell width, so the HUD stays centered as the timer advances.
+func timeBar(e *test.Engine, width int) string {
+	if width < 1 || e.DurationSec <= 0 {
+		return ""
+	}
+	ratio := e.Elapsed().Seconds() / float64(e.DurationSec)
+	ratio = min(max(ratio, 0), 1)
+	filled := int(math.Round(ratio * float64(width)))
+	return Accent.Render(strings.Repeat("━", filled)) +
+		Sub.Render(strings.Repeat("─", width-filled))
 }
 
 // renderWords lays out the word stream, keeping the current word's line in

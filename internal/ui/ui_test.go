@@ -156,6 +156,21 @@ func TestSparkline(t *testing.T) {
 	}
 }
 
+func TestTimeBarAndPulse(t *testing.T) {
+	e, now := uiTestEngine()
+	e.Type('t')
+	if got := lipgloss.Width(timeBar(e, 24)); got != 24 {
+		t.Errorf("time bar width = %d, want 24", got)
+	}
+	if got := pulseGlyph(e); got != pulseFrames[0] {
+		t.Errorf("initial pulse = %q, want %q", got, pulseFrames[0])
+	}
+	*now = now.Add(200 * time.Millisecond)
+	if got := pulseGlyph(e); got == pulseFrames[0] {
+		t.Errorf("pulse did not advance: %q", got)
+	}
+}
+
 func TestProfileFormattingHelpers(t *testing.T) {
 	for _, tt := range []struct {
 		secs float64
