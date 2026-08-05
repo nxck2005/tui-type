@@ -11,7 +11,6 @@ func RenderSplash(width, height int) string {
 	)
 	brand := lipgloss.JoinVertical(lipgloss.Center,
 		logo,
-		Sub.Render("▁▃▆█▆▃▁"),
 		Sub.Render("a terminal typing test"),
 	)
 	content := lipgloss.JoinVertical(lipgloss.Center,
