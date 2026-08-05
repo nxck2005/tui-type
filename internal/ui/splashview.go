@@ -4,12 +4,17 @@ import "github.com/charmbracelet/lipgloss"
 
 // RenderSplash draws the launch screen before the first typing test.
 func RenderSplash(width, height int) string {
-	logo := lipgloss.JoinVertical(lipgloss.Center,
+	logo := lipgloss.JoinHorizontal(lipgloss.Center,
+		Keycap.Render("⌨"),
+		" ",
 		Big.Render("tui-type"),
+	)
+	brand := lipgloss.JoinVertical(lipgloss.Center,
+		logo,
 		Sub.Render("a terminal typing test"),
 	)
 	content := lipgloss.JoinVertical(lipgloss.Center,
-		logo,
+		brand,
 		"",
 		Text.Render("ready when you are"),
 		"",

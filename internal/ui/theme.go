@@ -23,6 +23,11 @@ var (
 	Extra  = lipgloss.NewStyle().Foreground(ColorErrorX)
 	Big    = lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
 	Caret  = lipgloss.NewStyle().Foreground(ColorBg).Background(ColorAccent)
+	Keycap = lipgloss.NewStyle().
+		Foreground(ColorBg).
+		Background(ColorAccent).
+		Bold(true).
+		Padding(0, 1)
 )
 
 func exitNotice(exitHint bool) string {
@@ -39,6 +44,9 @@ func Frame(width, height int, content, help, notice string) string {
 		return content
 	}
 	innerWidth, innerHeight := width-2, height-2
+	if notice == "" {
+		notice = Sub.Render("·  tui-type  ·")
+	}
 	header := lipgloss.PlaceHorizontal(innerWidth, lipgloss.Center, notice)
 	main := lipgloss.Place(innerWidth, innerHeight-4, lipgloss.Center, lipgloss.Center, content)
 	footer := lipgloss.PlaceHorizontal(innerWidth, lipgloss.Center, Sub.Render(help))
@@ -46,7 +54,7 @@ func Frame(width, height int, content, help, notice string) string {
 	return lipgloss.NewStyle().
 		Width(innerWidth).
 		Height(innerHeight).
-		Border(lipgloss.NormalBorder()).
+		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ColorAccent).
 		Render(inside)
 }
