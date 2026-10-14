@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -105,6 +106,23 @@ func TestFirstTypingKeyArmsOneTickLoop(t *testing.T) {
 	m, cmd = updateModel(t, m, runeKey("t"))
 	if cmd != nil || m.tickGeneration != 1 {
 		t.Fatal("later typing key scheduled a duplicate tick loop")
+	}
+}
+
+func TestPasteControlRunesAreStripped(t *testing.T) {
+	m, _ := newAppTestModel(t)
+	// Mimics a bracketed paste carrying an OSC sequence, CR, BS and DEL/C1.
+	paste := "\x1b]0;pwn\x07\r\x08ab\x7f\u009b"
+	m, _ = updateModel(t, m, tea.KeyMsg{Type: tea.KeyRunes, Paste: true, Runes: []rune(paste)})
+	if got := string(m.engine.Words[0].Typed); got != "]0;pwnab" {
+		t.Fatalf("typed = %q, want %q", got, "]0;pwnab")
+	}
+	for _, w := range m.engine.Words {
+		for _, r := range w.Typed {
+			if unicode.IsControl(r) {
+				t.Fatalf("control rune %q reached the engine", r)
+			}
+		}
 	}
 }
 
