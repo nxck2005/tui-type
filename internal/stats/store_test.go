@@ -39,6 +39,37 @@ func TestStoreRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSaveDoesNotFollowTempSymlink(t *testing.T) {
+	dir := t.TempDir()
+	victim := filepath.Join(dir, "victim.txt")
+	if err := os.WriteFile(victim, []byte("keep me"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "results.json")
+	if err := os.Symlink(victim, path+".tmp"); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddResult(Result{DurationSec: 30, WPM: 80}); err != nil {
+		t.Fatalf("AddResult: %v", err)
+	}
+
+	if b, err := os.ReadFile(victim); err != nil || string(b) != "keep me" {
+		t.Errorf("victim = %q (err %v), want untouched", b, err)
+	}
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open reload: %v", err)
+	}
+	if len(s2.Data.Results) != 1 || s2.Data.Results[0].WPM != 80 {
+		t.Errorf("results = %+v, want one result", s2.Data.Results)
+	}
+}
+
 func TestAggregate(t *testing.T) {
 	results := []Result{
 		{DurationSec: 15, WPM: 80, Raw: 90, Accuracy: 95, Consistency: 60},
