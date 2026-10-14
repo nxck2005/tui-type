@@ -4,6 +4,7 @@ package app
 
 import (
 	"time"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -193,9 +194,14 @@ func (m Model) updateTest(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyRunes:
 		m.wakeCursor()
 		for _, r := range msg.Runes {
-			if r == ' ' {
+			switch {
+			case unicode.IsControl(r):
+				// Bracketed paste forwards control bytes unfiltered; dropping
+				// them here keeps escape sequences, cursor moves and bells out
+				// of the engine and the rendered word stream.
+			case r == ' ':
 				m.engine.Space()
-			} else {
+			default:
 				m.engine.Type(r)
 			}
 		}
