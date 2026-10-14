@@ -91,16 +91,39 @@ func (s *Store) AddAborted(elapsedSecs float64) error {
 }
 
 func (s *Store) save() error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+	dir := filepath.Dir(s.path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	b, err := json.MarshalIndent(s.Data, "", "  ")
 	if err != nil {
 		return err
 	}
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	// CreateTemp creates with O_EXCL, so a symlink planted at a predictable
+	// temp name can't redirect the write onto another file.
+	f, err := os.CreateTemp(dir, ".results-*.json")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.path)
+	tmp := f.Name()
+	if _, err := f.Write(b); err != nil {
+		f.Close()
+		os.Remove(tmp)
+		return err
+	}
+	// CreateTemp uses 0600; keep the store's previous 0644 visibility.
+	if err := f.Chmod(0o644); err != nil {
+		f.Close()
+		os.Remove(tmp)
+		return err
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, s.path); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
 }
